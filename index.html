@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BurnDown ToDo</title>
+  <link rel="stylesheet" href="/plugins/css/bootstrap.css" type="text/css">
+  <link rel="stylesheet" href="/plugins/css/morris.css" type="text/css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="row">
+      <div class="col-md-12">
+        <h1>BurnDown ToDo</h1>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div class="row">
+      <div class="col-md-12">
+        <ul id="task-list" class="list-group">
+          <li class="list-group-item">
+            <form id="task-form" action="" method="post">
+              <input type="text" class="form-control"
+                     placeholder="Enter task here">
+            </form>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <form id="start-form" class="form-inline" action="" method="post">
+          <div class="form-group">
+            <label>Time needed</label>
+            <input type="text" class="form-control" placeholder="HH:MM" />
+          </div>
+          <input type="submit" class="btn btn-default" value="Start" />
+        </form>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="row">
+      <div id="chart" class="col-md-12" style="height:300px"></div>
+    </div>
+  </div>
+
+  <!-- External libraries -->
+  <script src="/plugins/js/underscore.js" type="text/javascript"></script>
+  <script src="/plugins/js/jquery.js" type="text/javascript"></script>
+  <script src="/plugins/js/backbone.js" type="text/javascript"></script>
+  <script src="/plugins/js/bootstrap.js" type="text/javascript"></script>
+  <script src="/plugins/js/raphael.js" type="text/javascript"></script>
+  <script src="/plugins/js/morris.js" type="text/javascript"></script>
+  <script src="/plugins/js/moment.js" type="text/javascript"></script>
+
+  <script type="text/javascript">
+    $(function() {
+      var BurnDownToDo = window.BurnDownToDo = {};
+      var Globals = BurnDownToDo.globals = {};
+
+      var Models = BurnDownToDo.models = {
+        UiState: Backbone.Model.extend({
+          defaults: { status: 'setup' },
+          initialize: function() {
+            this.listenTo(this, 'change:status', function() {
+              if(this.get('status') == 'running') {
+                Globals.chart.start_drawing();
+              }
+            });
+          },
+        }),
+
+        Task: Backbone.Model.extend({
+          defaults: { done: false },
+        }),
+
+        Snapshot: Backbone.Model.extend({
+          get_tasks_left: function() {
+            return this.get('total') - this.get('done');
+          },
+          get_velocity_left: function() {
+          },
+        }),
+      };
+
+      var Collections = BurnDownToDo.collections = {
+        Tasks: Backbone.Collection.extend({ model: Models.Task }),
+
+        Snapshots: Backbone.Collection.extend({
+          model: Models.Snapshot,
+          comparator: 'created',
+          take_snapshot: function(now) {
+            if(! now) { now = new Date();}
+            var done = 0, total = 0;
+            Globals.tasks.each(function(task) {
+              if(task.get('done')) { done += 1; }
+              total += 1;
+            });
+            this.add({ done: done, total: total, created: now });
+          },
+        }),
+      };
+
+      var Views = BurnDownToDo.views = {
+        TaskForm: Backbone.View.extend({
+          events: { submit: "add_task" },
+          initialize: function() {
+            this.ui = { input: this.$('input[type="text"]'),
+                        li: this.$el.parent() };
+          },
+          add_task: function(event) {
+            if(event) { event.preventDefault(); }
+            var text = this.ui.input.val().trim();
+            if(text) {
+              Globals.tasks.add(new Models.Task({ text: text }))
+              this.ui.input.val('');
+            }
+          },
+        }),
+
+        TaskList: Backbone.View.extend({
+          initialize: function() {
+            this.listenTo(Globals.tasks, 'add', this.add_new);
+          },
+          add_new: function(new_task) {
+            var new_task_view = new Views.Task({ model: new_task });
+            new_task_view.render().$el.insertBefore(Globals.task_form.ui.li);
+          },
+        }),
+
+        Task: Backbone.View.extend({
+          events: { 'click .js-remove': "click_remove",
+                    'click input[type="checkbox"]': "mark_done" },
+          tagName: 'li',
+          setup_template: _.template($('#task-setup-template').html()),
+          running_template: _.template($('#task-running-template').html()),
+          initialize: function() {
+            this.listenTo(this.model, 'destroy', this.remove);
+            this.listenTo(this.model, 'change:done', this.draw_done);
+            this.listenTo(Globals.ui_state, 'change:status', this.render);
+          },
+          _bind_ui: function() {
+            this.ui = { text: this.$('input[type="text"]'),
+                        done: this.$('input[type="checkbox"]') };
+          },
+          render: function() {
+            var template;
+            if(Globals.ui_state.get('status') == 'setup') {
+              template = this.setup_template;
+            } else if(Globals.ui_state.get('status') == 'running') {
+              template = this.running_template;
+            }
+            this.$el.html(template({ task: this.model.toJSON() }));
+            this.$el.addClass('list-group-item');
+            this._bind_ui();
+            return this;
+          },
+          click_remove: function(event) {
+            if(event) { event.preventDefault(); }
+            this.model.destroy();
+          },
+          mark_done: function(event) {
+            this.model.set({ done: this.ui.done.prop('checked') });
+            Globals.snapshots.take_snapshot();
+          },
+          draw_done: function() {
+            if(this.model.get('done')) {
+              this.ui.text.css('text-decoration', 'line-through');
+              this.$el.children().addClass('has-success');
+            } else {
+              this.ui.text.css('text-decoration', 'none');
+              this.$el.children().removeClass('has-success');
+            }
+          },
+        }),
+
+        StartForm: Backbone.View.extend({
+          events: { submit: "submit" },
+          initialize: function() {
+            this.ui = { 'time': this.$('input[type="text"]') };
+          },
+          submit: function(event) {
+            if(event) { event.preventDefault(); }
+            // Validate number of tasks
+            if(Globals.tasks.length === 0) { return false; }
+
+            // Validate time
+            var minutes = this._validate_time();
+            if(minutes === false) {
+              this.ui.time.parent().addClass('has-error');
+              return;
+            } else {
+              this.ui.time.parent().removeClass('has-error');
+            }
+            var now = new Date();
+            Globals.snapshots.take_snapshot(now);
+            Globals.ui_state.set({
+              status: 'running',
+              start: now,
+              end: new Date(now.getTime() + minutes * 60 * 1000 ),
+            });
+            this.remove();
+          },
+          _validate_time: function() {
+            var text = this.ui.time.val();
+            var splitted = text.split(':');
+            if(splitted.length != 2) { return false; }
+            var hours_str = splitted[0], minutes_str = splitted[1];
+            var hours_num = parseInt(hours_str),
+                minutes_num = parseInt(minutes_str);
+            if('' + hours_num != hours_str || '' + minutes_num != minutes_str ||
+               hours_num < 0 || minutes_num < 0 || minutes_num > 59)
+            {
+              return false;
+            }
+            return hours_num * 60 + minutes_num;
+          },
+        }),
+
+        Chart: Backbone.View.extend({
+          initialize: function() {
+            this._first_time = true;
+            var _this = this;
+            this.listenTo(Globals.tasks, 'change:done', function() {
+              _.defer(function() { _this.draw(); });
+            });
+          },
+          start_drawing: function() {
+            this.draw();
+            var _this = this;
+            setInterval(function() { _this.draw(); }, 10 * 1000);
+          },
+          draw: function() {
+            var first_snapshot = Globals.snapshots.at(0);
+            var data = [{
+              created: first_snapshot.get('created').getTime(),
+              tasks_left: first_snapshot.get_tasks_left(),
+              velocity_left: first_snapshot.get_tasks_left(),
+            }];
+            for(var i = 1; i < Globals.snapshots.length; i++) {
+              var a = Globals.snapshots.at(i - 1), b = Globals.snapshots.at(i);
+              data.push({ created: b.get('created').getTime(),
+                          tasks_left: a.get_tasks_left() });
+              data.push({ created: b.get('created').getTime(),
+                          tasks_left: b.get_tasks_left() });
+            }
+            data.push({created: (new Date()).getTime(),
+                       tasks_left: Globals.snapshots.last().get_tasks_left()});
+            data.push({ created: Globals.ui_state.get('end').getTime(),
+                        velocity_left: 0 })
+
+            if(this._first_time) {
+              this._first_time = false;
+              this.line = new Morris.Line({
+                element: this.el,
+                data: data,
+                xkey: 'created',
+                ykeys: ['tasks_left', 'velocity_left'],
+                labels: ['Tasks left', 'Velocity left'],
+                lineColors: ['blue', 'red'],
+                smooth: false,
+              });
+
+            } else {
+              this.line.setData(data);
+            }
+          },
+          _format_date: function(date) {
+            var start = Globals.ui_state.get('start'),
+                end = Globals.ui_state.get('end');
+            if(start.getYear() == end.getYear() &&
+               start.getMonth() == end.getMonth() &&
+               start.getDate() == end.getDate())
+            {
+              return moment(date).format('HH:mm:ss');
+            } else {
+              return moment(date).format('dddd HH:mm:ss');
+            }
+          },
+        }),
+      };
+
+      // Main
+      Globals.ui_state = new Models.UiState();
+      Globals.tasks = new Collections.Tasks();
+      Globals.snapshots = new Collections.Snapshots();
+      Globals.task_form = new Views.TaskForm({ el: '#task-form' });
+      Globals.task_list = new Views.TaskList({ el: '#task-list' });
+      Globals.start_form = new Views.StartForm({ el: '#start-form' });
+      Globals.chart = new Views.Chart({ el: '#chart' });
+    });
+  </script>
+
+  <!-- Templates -->
+  <script id="task-setup-template" type="text/template">
+    <div class="input-group">
+      <span class="input-group-addon js-remove">
+        <span class="glyphicon glyphicon-remove"></span>
+      </span>
+      <input type="text" class="form-control" value="<%- task.text %>" />
+    </div>
+  </script>
+  <script id="task-running-template" type="text/template">
+    <div class="input-group">
+      <span class="input-group-addon">
+        <input type="checkbox" />
+      </span>
+      <input type="text" class="form-control" value="<%- task.text %>" />
+    </div>
+  </script>
+</body>
+</html>
