@@ -63,25 +63,27 @@
 
       var Models = BurnDownToDo.models = {
         UiState: Backbone.Model.extend({
-          defaults: { status: 'setup' },
-          initialize: function() {
-            this.listenTo(this, 'change:status', function() {
-              if(this.get('status') == 'running') {
-                Globals.chart.start_drawing();
-              }
-            });
-          },
+          defaults: { status: 'setup', start: null, end: null },
         }),
 
         Task: Backbone.Model.extend({
-          defaults: { done: false },
+          defaults: { done: false, text: '' },
         }),
 
         Snapshot: Backbone.Model.extend({
+          defaults: function() {
+            return { created: new Date(), total: 0, done: 0 };
+          },
           get_tasks_left: function() {
             return this.get('total') - this.get('done');
           },
           get_velocity_left: function() {
+            return this.get('total') * (
+              (Globals.ui_state.get('end').getTime() -
+               this.get('created').getTime()) /
+              (Globals.ui_state.get('end').getTime() -
+               Globals.ui_state.get('start').getTime())
+            )
           },
         }),
       };
@@ -92,6 +94,18 @@
         Snapshots: Backbone.Collection.extend({
           model: Models.Snapshot,
           comparator: 'created',
+          initialize: function() {
+            this.listenTo(Globals.ui_state, 'change:status', function() {
+              if(Globals.ui_state.get('status') == 'running') {
+                this.take_snapshot();
+              }
+            });
+            this.listenTo(Globals.tasks, 'change:done', function() {
+              if(Globals.ui_state.get('status') == 'running') {
+                this.take_snapshot();
+              }
+            });
+          },
           take_snapshot: function(now) {
             if(! now) { now = new Date();}
             var done = 0, total = 0;
@@ -139,7 +153,7 @@
           running_template: _.template($('#task-running-template').html()),
           initialize: function() {
             this.listenTo(this.model, 'destroy', this.remove);
-            this.listenTo(this.model, 'change:done', this.draw_done);
+            this.listenTo(this.model, 'change:done', this.render);
             this.listenTo(Globals.ui_state, 'change:status', this.render);
           },
           _bind_ui: function() {
@@ -164,16 +178,6 @@
           },
           mark_done: function(event) {
             this.model.set({ done: this.ui.done.prop('checked') });
-            Globals.snapshots.take_snapshot();
-          },
-          draw_done: function() {
-            if(this.model.get('done')) {
-              this.ui.text.css('text-decoration', 'line-through');
-              this.$el.children().addClass('has-success');
-            } else {
-              this.ui.text.css('text-decoration', 'none');
-              this.$el.children().removeClass('has-success');
-            }
           },
         }),
 
@@ -184,6 +188,7 @@
           },
           submit: function(event) {
             if(event) { event.preventDefault(); }
+
             // Validate number of tasks
             if(Globals.tasks.length === 0) { return false; }
 
@@ -196,13 +201,12 @@
               this.ui.time.parent().removeClass('has-error');
             }
             var now = new Date();
-            Globals.snapshots.take_snapshot(now);
             Globals.ui_state.set({
               status: 'running',
               start: now,
               end: new Date(now.getTime() + minutes * 60 * 1000 ),
             });
-            this.remove();
+            this.$el.addClass('hidden');
           },
           _validate_time: function() {
             var text = this.ui.time.val();
@@ -222,18 +226,32 @@
 
         Chart: Backbone.View.extend({
           initialize: function() {
-            this._first_time = true;
-            var _this = this;
-            this.listenTo(Globals.tasks, 'change:done', function() {
-              _.defer(function() { _this.draw(); });
+            this.line = new Morris.Line({
+              element: this.el,
+              data: [],
+              xkey: 'created',
+              ykeys: ['tasks_left', 'velocity_left'],
+              labels: ['Tasks left', 'Velocity left'],
+              lineColors: ['blue', 'red'],
+              smooth: false,
             });
-          },
-          start_drawing: function() {
-            this.draw();
+
+            this.listenTo(Globals.ui_state, 'change:status', this.draw);
+            this.listenTo(Globals.tasks, 'change:done', this.draw);
+
             var _this = this;
             setInterval(function() { _this.draw(); }, 10 * 1000);
           },
           draw: function() {
+            if(Globals.ui_state.get('status') == 'setup' ||
+               Globals.snapshots.length === 0)
+            {
+              this.$el.addClass('hidden');
+              return;
+            }
+            this.$el.removeClass('hidden');
+
+            // Make data
             var first_snapshot = Globals.snapshots.at(0);
             var data = [{
               created: first_snapshot.get('created').getTime(),
@@ -242,43 +260,24 @@
             }];
             for(var i = 1; i < Globals.snapshots.length; i++) {
               var a = Globals.snapshots.at(i - 1), b = Globals.snapshots.at(i);
-              data.push({ created: b.get('created').getTime(),
+              data.push({ created: b.get('created').getTime() - 1,
                           tasks_left: a.get_tasks_left() });
               data.push({ created: b.get('created').getTime(),
-                          tasks_left: b.get_tasks_left() });
+                          tasks_left: b.get_tasks_left(),
+                          velocity_left: b.get_velocity_left() });
             }
-            data.push({created: (new Date()).getTime(),
-                       tasks_left: Globals.snapshots.last().get_tasks_left()});
+            var last_snapshot = Globals.snapshots.last();
+            data.push({
+              created: (new Date()).getTime(),
+              velocity_left: (new Models.Snapshot({
+                total: last_snapshot.get('total')
+              })).get_velocity_left(),
+              tasks_left: last_snapshot.get_tasks_left(),
+            });
             data.push({ created: Globals.ui_state.get('end').getTime(),
                         velocity_left: 0 })
 
-            if(this._first_time) {
-              this._first_time = false;
-              this.line = new Morris.Line({
-                element: this.el,
-                data: data,
-                xkey: 'created',
-                ykeys: ['tasks_left', 'velocity_left'],
-                labels: ['Tasks left', 'Velocity left'],
-                lineColors: ['blue', 'red'],
-                smooth: false,
-              });
-
-            } else {
-              this.line.setData(data);
-            }
-          },
-          _format_date: function(date) {
-            var start = Globals.ui_state.get('start'),
-                end = Globals.ui_state.get('end');
-            if(start.getYear() == end.getYear() &&
-               start.getMonth() == end.getMonth() &&
-               start.getDate() == end.getDate())
-            {
-              return moment(date).format('HH:mm:ss');
-            } else {
-              return moment(date).format('dddd HH:mm:ss');
-            }
+            this.line.setData(data);
           },
         }),
       };
@@ -304,9 +303,13 @@
     </div>
   </script>
   <script id="task-running-template" type="text/template">
-    <div class="input-group">
+    <div class="input-group <% if(task.done) { print('has-success'); } %>">
       <span class="input-group-addon">
-        <input type="checkbox" />
+        <input type="checkbox"
+               <% if(task.done) {
+                    print('checked="checked" '+
+                          'style="text-decoration: line-through"');
+                  } %> />
       </span>
       <input type="text" class="form-control" value="<%- task.text %>" />
     </div>
