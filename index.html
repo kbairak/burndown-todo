@@ -5,6 +5,11 @@
   <title>BurnDown ToDo</title>
   <link rel="stylesheet" href="/plugins/css/bootstrap.css" type="text/css">
   <link rel="stylesheet" href="/plugins/css/morris.css" type="text/css">
+  <style type="text/css" media="screen">
+    body, html {
+      height: 100%;
+    }
+  </style>
 </head>
 <body>
   <a href="https://github.com/kbairak/burndown-todo">
@@ -13,7 +18,7 @@
          alt="Fork me on GitHub"
          data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" />
   </a>
-  <div class="container">
+  <div class="container" style="height: 100%">
     <!-- Header -->
     <div class="row">
       <div class="col-md-12">
@@ -21,20 +26,21 @@
       </div>
     </div>
 
-    <!-- List -->
-    <div class="row">
-      <div class="col-md-12">
-        <ul id="task-list" class="list-group">
-          <li class="list-group-item">
-            <form id="task-form" action="" method="post">
-              <input type="text" class="form-control"
-                     placeholder="Enter task here">
-            </form>
-          </li>
-        </ul>
+    <div style="max-height: 50%; overflow: scroll">
+      <!-- List -->
+      <div class="row">
+        <div class="col-md-12">
+          <ul id="task-list" class="list-group">
+            <li class="list-group-item">
+              <form id="task-form" action="" method="post">
+                <input type="text" class="form-control"
+                       placeholder="Enter task here">
+              </form>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
-
     <div class="row">
       <div class="col-md-12">
         <form id="start-form" class="form-inline" action="" method="post">
