@@ -25,6 +25,9 @@ $(function() {
     Globals.tasks.trigger('reset');
     Globals.snapshots.trigger('reset');
     Globals.ui_state.trigger('change:status');
+
+    // Focus
+    Globals.task_form.ui.input.trigger('focus');
   };
 
   main();
