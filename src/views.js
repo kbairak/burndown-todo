@@ -91,6 +91,7 @@ $(function() {
       } else {
         this.ui.time.parent().removeClass('has-error');
       }
+
       var now = new Date();
       Globals.ui_state.set({
         status: 'running',
@@ -159,7 +160,7 @@ $(function() {
       this.listenTo(Globals.snapshots, 'add reset', this.draw);
 
       var _this = this;
-      setInterval(function() { _this.draw(); }, 10 * 1000);
+      setInterval(function() { _this.draw(); }, 1000);
     },
     show_hide: function() {
       if(Globals.ui_state.get('status') == 'setup') {
@@ -172,10 +173,8 @@ $(function() {
       if(Globals.ui_state.get('status') == 'setup' ||
          Globals.snapshots.length === 0)
       {
-        this.$el.addClass('hidden');
         return;
       }
-      this.$el.removeClass('hidden');
 
       // Make data
       var first_snapshot = Globals.snapshots.at(0);
@@ -193,15 +192,22 @@ $(function() {
                     velocity_left: b.get_velocity_left() });
       }
       var last_snapshot = Globals.snapshots.last();
-      data.push({
-        created: (new Date()).getTime(),
-        velocity_left: (new Models.Snapshot({
-          total: last_snapshot.get('total')
-        })).get_velocity_left(),
-        tasks_left: last_snapshot.get_tasks_left(),
-      });
-      data.push({ created: Globals.ui_state.get('end'),
-                  velocity_left: 0 });
+      var now = (new Date()).getTime();
+      if(now < Globals.ui_state.get('end')) {
+        data.push({
+          created: (new Date()).getTime(),
+          velocity_left: (new Models.Snapshot({
+            total: last_snapshot.get('total')
+          })).get_velocity_left(),
+          tasks_left: last_snapshot.get_tasks_left(),
+        });
+        data.push({ created: Globals.ui_state.get('end'),
+                    velocity_left: 0 });
+      } else {
+        data.push({ created: Globals.ui_state.get('end'),
+                    tasks_left: last_snapshot.get_tasks_left(),
+                    velocity_left: 0 });
+      }
 
       this.line.setData(data);
     },

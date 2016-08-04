@@ -19,5 +19,5 @@ and point your server to `localhost:8010`
 
 ### Development
 
-After changing the source files, make sure you run `make minify`. If needed,
-edit the Makefile to include any new js files
+After changing the source files, make sure you run `make bundle`. If needed,
+edit the Makefile to include any new javascript files.
