@@ -11,3 +11,6 @@ minify:
 		src/app.js\
 		-o bundle.js\
 		--source-map=bundle.js.map
+
+runserver:
+	python -m SimpleHTTPServer 8010
