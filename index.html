@@ -33,7 +33,7 @@
       <div class="col-md-12">
         <form id="start-form" class="form-inline" action="" method="post">
           <div class="form-group">
-            <label>Time needed</label>
+            <label>Time needed to finish tasks</label>
             <input type="text" class="form-control" placeholder="HH:MM" />
           </div>
           <input type="submit" class="btn btn-default" value="Start" />
@@ -41,6 +41,7 @@
         <form id="reset-form" class="hidden form-inline" action=""
               method="post">
           <input type="submit" class="btn btn-default" value="Reset" />
+           (all incomplete tasks will be preserved)
         </form>
       </div>
     </div>
@@ -51,7 +52,7 @@
     </div>
   </div>
 
-  <!-- External libraries -->
+  <!--
   <script src="/plugins/js/jquery.js" type="text/javascript"></script>
   <script src="/plugins/js/underscore.js" type="text/javascript"></script>
   <script src="/plugins/js/backbone.js" type="text/javascript"></script>
@@ -59,8 +60,9 @@
   <script src="/plugins/js/raphael.js" type="text/javascript"></script>
   <script src="/plugins/js/morris.js" type="text/javascript"></script>
 
-  <!-- Mine -->
   <script src="/app.js" type="text/javascript"></script>
+  -->
+  <script src="/bundle.js" type="text/javascript"></script>
 
   <!-- Templates -->
   <script id="task-setup-template" type="text/template">
