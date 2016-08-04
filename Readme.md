@@ -3,6 +3,8 @@
 A simple ToDo application with a burndown chart to help monitor your progress
 in real time.
 
+Go [here](https://kbairak.github.io/) to check it out.
+
 
 ### Usage
 
