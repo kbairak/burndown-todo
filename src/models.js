@@ -14,6 +14,7 @@ $(function() {
       });
     },
     restore: function(options) {
+      if(! (this.localStorage_key in localStorage)) { return; }
       this.set(JSON.parse(localStorage[this.localStorage_key]), options);
     }
   });
@@ -48,6 +49,7 @@ $(function() {
     LocalStorageCollection.extend = Backbone.Collection.extend;
 
     LocalStorageCollection.prototype.restore = function(options) {
+      if(! (this.localStorage_key in localStorage)) { return; }
       this.reset(JSON.parse(localStorage[this.localStorage_key]), options);
     };
 
