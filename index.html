@@ -89,12 +89,12 @@
     <div class="input-group <% if(task.done) { print('has-success'); } %>">
       <span class="input-group-addon">
         <input type="checkbox"
-               <% if(task.done) {
-                    print('checked="checked" '+
-                          'style="text-decoration: line-through"');
-                  } %> />
+               <% if(task.done) { print('checked="checked"'); } %> />
       </span>
-      <input type="text" class="form-control" value="<%- task.text %>" />
+      <input type="text" class="form-control" value="<%- task.text %>"
+             <% if(task.done) {
+                  print('style="text-decoration: line-through"');
+                } %> />
     </div>
   </script>
 </body>
